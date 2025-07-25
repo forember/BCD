@@ -7,6 +7,7 @@
 #include <zlib.h>
 
 #include "readpng.hh"
+#include "writepng.hh"
 
 const char *argp_program_version = "bcd 0.1";
 const char *argp_program_bug_address = "<em@embermckinney.com>";
@@ -77,8 +78,25 @@ int main(int argc, char **argv)
             << "Output PNG: " << arguments.args[1] << std::endl
             << "Overhang Leeway: " << arguments.leeway << std::endl;
     }
-    std::vector<std::vector<bool>> columns;
-    BinaryPNGReader reader(arguments.args[0], columns);
+    std::vector<std::vector<bool>> binary_columns;
+    BinaryPNGReader reader(arguments.args[0], binary_columns);
     reader.read_png();
+    size_t width = binary_columns.size();
+    size_t height = binary_columns.at(0).size();
+    std::vector<std::vector<struct color>> color_columns(width,
+        std::vector<struct color>(height, {0x00, 0x00, 0x00}));
+    for (size_t x = 0; x < width; ++x)
+    {
+        for (size_t y = 0; y < height; ++y)
+        {
+            if (binary_columns.at(x).at(y))
+            {
+                struct color &color = color_columns.at(x).at(y);
+                color.r = color.g = color.b = 0xff;
+            }
+        }
+    }
+    RGBPNGWriter writer(arguments.args[1], color_columns);
+    writer.write_png();
     return 0;
 }

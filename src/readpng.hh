@@ -11,7 +11,7 @@
 class BinaryPNGReader
 {
 private:
-    const int SIG_READ = 8;
+    static const int SIG_READ = 8;
     int sig_num_bytes = 0;
     FILE *fp = nullptr;
     std::vector<std::vector<bool>> *columns;

@@ -12,7 +12,7 @@
             "args": [
                 "-v",
                 "maps/cave.map.png",
-                "cave.test.png"
+                "outputs/cave.test.png"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
