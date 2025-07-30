@@ -7,6 +7,7 @@
 #include <zlib.h>
 
 #include "readpng.hh"
+#include "slices.hh"
 #include "writepng.hh"
 
 const char *argp_program_version = "bcd 0.1";
@@ -63,6 +64,41 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
 
 static struct argp argp = { options, parse_opt, args_doc, doc };
 
+void color_event(const BCDEvent &event, size_t x,
+    std::vector<std::vector<struct color>> &color_columns)
+{
+    struct color color = {0x00, 0x00, 0x00};
+    switch (event.event_type)
+    {
+        case BCD_EVENT_START:
+            color.g = 0xff;
+            break;
+        case BCD_EVENT_END:
+            color.r = 0xff;
+            break;
+        case BCD_EVENT_MERGE:
+            color.g = color.b = 0xff;
+            break;
+        case BCD_EVENT_SPLIT:
+            color.r = color.b = 0xff;
+            break;
+    }
+    for (const slice &a : event.left)
+    {
+        for (size_t y = a.first; y < a.second; ++y)
+        {
+            color_columns.at(x).at(y) = color;
+        }
+    }
+    for (const slice &b : event.right)
+    {
+        for (size_t y = b.first; y < b.second; ++y)
+        {
+            color_columns.at(x + 1).at(y) = color;
+        }
+    }
+}
+
 int main(int argc, char **argv)
 {
     struct arguments arguments;
@@ -81,8 +117,11 @@ int main(int argc, char **argv)
     std::vector<std::vector<bool>> binary_columns;
     BinaryPNGReader reader(arguments.args[0], binary_columns);
     reader.read_png();
-    size_t width = binary_columns.size();
     size_t height = binary_columns.at(0).size();
+    binary_columns.emplace(binary_columns.begin(), height, false);
+    binary_columns.emplace_back(height, false);
+    const auto events = find_all_events(binary_columns, true);
+    size_t width = binary_columns.size();
     std::vector<std::vector<struct color>> color_columns(width,
         std::vector<struct color>(height, {0x00, 0x00, 0x00}));
     for (size_t x = 0; x < width; ++x)
@@ -93,6 +132,13 @@ int main(int argc, char **argv)
             {
                 struct color &color = color_columns.at(x).at(y);
                 color.r = color.g = color.b = 0xff;
+            }
+        }
+        if (x > 0)
+        {
+            for (const BCDEvent &event : events.at(x - 1))
+            {
+                color_event(event, x - 1, color_columns);
             }
         }
     }

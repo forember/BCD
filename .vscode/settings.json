@@ -49,7 +49,12 @@
         "streambuf": "cpp",
         "text_encoding": "cpp",
         "typeinfo": "cpp",
-        "variant": "cpp"
+        "variant": "cpp",
+        "codecvt": "cpp",
+        "map": "cpp",
+        "ratio": "cpp",
+        "iomanip": "cpp",
+        "sstream": "cpp"
     },
     "cmake.sourceDirectory": "${workspaceFolder}/src",
     "cmake.buildDirectory": "${workspaceFolder}/build"
