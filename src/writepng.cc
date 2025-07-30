@@ -1,7 +1,7 @@
 #include "writepng.hh"
 
 RGBPNGWriter::RGBPNGWriter(const std::string file_name,
-    const std::vector<std::vector<struct color>> &columns_source)
+    const std::vector<std::vector<color>> &columns_source)
 {
     fp = fopen(file_name.c_str(), "wb");
     columns = &columns_source;

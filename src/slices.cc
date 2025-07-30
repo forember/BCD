@@ -1,5 +1,8 @@
 #include "slices.hh"
 
+#include <chrono>
+#include <iostream>
+
 Connections::Connections(const std::vector<slice> &left_slices,
         const std::vector<slice> &right_slices)
 {
@@ -71,9 +74,9 @@ std::vector<slice> find_slices(const std::vector<bool> &column, bool match)
     std::vector<slice> slices;
     slice *current_slice = nullptr;
     bool previous_px = !match;
-    for (size_t i = 0; i <= column.size(); ++i)
+    for (size_t i = 0; i < column.size(); ++i)
     {
-        bool current_px = (i == column.size()) ? !match : column.at(i);
+        bool current_px = column.at(i);
         if (previous_px != match && current_px == match)
         {
             slices.emplace_back(i, 0);
@@ -83,6 +86,10 @@ std::vector<slice> find_slices(const std::vector<bool> &column, bool match)
             slices.back().second = i;
         }
         previous_px = current_px;
+    }
+    if (previous_px == match)
+    {
+        slices.back().second = column.size();
     }
     return slices;
 }

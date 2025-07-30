@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <argp.h>
+#include <chrono>
 #include <iostream>
 #include <png.h>
 #include <stdlib.h>
@@ -14,11 +15,11 @@
 const char *argp_program_version = "bcd 0.1";
 const char *argp_program_bug_address = "<em@embermckinney.com>";
 
-static char doc[] =
+static char DOC[] =
     "Boustrophedon Cell Decomposition -- split a binary image into regions";
-static char args_doc[] = "INPUT_PNG OUTPUT_PNG";
+static char ARGS_DOC[] = "INPUT_PNG OUTPUT_PNG";
 
-static struct argp_option options[] = {
+static argp_option options[] = {
     { "verbose", 'v', 0, 0, "Produce verbose output" },
     { "overhang-leeway", 'l', "PIXELS", 0,
         "Number of pixels leeway for overhangs" },
@@ -32,24 +33,24 @@ struct arguments
     int leeway;
 };
 
-static error_t parse_opt(int key, char *arg, struct argp_state *state)
+static error_t parse_opt(int key, char *arg, argp_state *state)
 {
-    struct arguments *arguments =
-        static_cast<struct arguments *>(state->input);
+    arguments *args =
+        static_cast<arguments *>(state->input);
     switch (key)
     {
         case 'v':
-            arguments->verbose = true;
+            args->verbose = true;
             break;
         case 'l':
-            arguments->leeway = std::stoi(arg);
+            args->leeway = std::stoi(arg);
             break;
         case ARGP_KEY_ARG:
             if (state->arg_num >= 2)
             {
                 argp_usage(state);
             }
-            arguments->args[state->arg_num] = arg;
+            args->args[state->arg_num] = arg;
             break;
         case ARGP_KEY_END:
             if (state->arg_num < 2)
@@ -63,7 +64,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state)
     return 0;
 }
 
-static struct argp argp = { options, parse_opt, args_doc, doc };
+static argp ARGP = { options, parse_opt, ARGS_DOC, DOC };
 
 void invalidate_start_merge(BCDEvent &a, size_t x,
     std::vector<std::vector<BCDEvent>> &events, int leeway)
@@ -165,79 +166,95 @@ void erase_invalid(std::vector<std::vector<BCDEvent>> &events)
 }
 
 void color_event(const BCDEvent &event, size_t x,
-    std::vector<std::vector<struct color>> &color_columns)
+    std::vector<std::vector<color>> &color_columns)
 {
-    struct color color = {0x00, 0x00, 0x00};
+    color c;
     switch (event.event_type)
     {
         case BCD_EVENT_START:
-            color.g = 0x99;
-            color.b = 0xff;
+            c = {0x00, 0x99, 0xff};
             break;
         case BCD_EVENT_END:
-            color.r = 0x99;
-            color.b = 0xff;
+            c = {0x99, 0x00, 0xff};
             break;
         case BCD_EVENT_MERGE:
-            color.g = 0xff;
-            color.b = 0x99;
+            c = {0x00, 0xff, 0x99};
             break;
         case BCD_EVENT_SPLIT:
-            color.r = 0xff;
-            color.b = 0x99;
+            c = {0xff, 0x00, 0x99};
+            break;
+        default:
+            c = {0xff, 0xff, 0xff};
             break;
     }
+    auto &left_col = color_columns.at(x);
     for (const slice &a : event.left)
     {
-        for (size_t y = a.first; y < a.second; ++y)
-        {
-            color_columns.at(x).at(y) = color;
-        }
+        std::fill(left_col.begin() + a.first,
+            left_col.begin() + a.second, c);
     }
+    auto &right_col = color_columns.at(x + 1);
     for (const slice &b : event.right)
     {
-        for (size_t y = b.first; y < b.second; ++y)
-        {
-            color_columns.at(x + 1).at(y) = color;
-        }
+        std::fill(right_col.begin() + b.first,
+            right_col.begin() + b.second, c);
     }
 }
 
 int main(int argc, char **argv)
 {
-    struct arguments arguments;
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+
+    arguments args;
     // Default values
-    arguments.verbose = false;
-    arguments.leeway = 2;
+    args.verbose = false;
+    args.leeway = 2;
     // Parse arguments
-    argp_parse(&argp, argc, argv, 0, 0, &arguments);
+    argp_parse(&ARGP, argc, argv, 0, 0, &args);
     // Print arguments
-    if (arguments.verbose)
+    if (args.verbose)
     {
-        std::cout << "Input PNG: " << arguments.args[0] << std::endl
-            << "Output PNG: " << arguments.args[1] << std::endl
-            << "Overhang Leeway: " << arguments.leeway << std::endl;
+        std::cout << "Input PNG: " << args.args[0] << std::endl
+            << "Output PNG: " << args.args[1] << std::endl
+            << "Overhang Leeway: " << args.leeway << std::endl;
     }
+
+    auto t0 = high_resolution_clock::now();
+
     std::vector<std::vector<bool>> binary_columns;
-    BinaryPNGReader reader(arguments.args[0], binary_columns);
+    BinaryPNGReader reader(args.args[0], binary_columns);
     reader.read_png();
+
     size_t height = binary_columns.at(0).size();
     binary_columns.emplace(binary_columns.begin(), height, false);
     binary_columns.emplace_back(height, false);
+
+    auto t1 = high_resolution_clock::now();
+
     auto events = find_all_events(binary_columns, true);
-    invalidate_overhangs(events, arguments.leeway);
+
+    auto t2 = high_resolution_clock::now();
+
+    invalidate_overhangs(events, args.leeway);
     erase_invalid(events);
+
     size_t width = binary_columns.size();
-    std::vector<std::vector<struct color>> color_columns(width,
-        std::vector<struct color>(height, {0x00, 0x00, 0x00}));
+    std::vector color_columns(width,
+        std::vector<color>(height, {0x00, 0x00, 0x00}));
+
+    auto t3 = high_resolution_clock::now();
+
     for (size_t x = 0; x < width; ++x)
     {
+        auto &b_col = binary_columns.at(x);
+        auto &c_col = color_columns.at(x);
         for (size_t y = 0; y < height; ++y)
         {
-            if (binary_columns.at(x).at(y))
+            if (b_col.at(y))
             {
-                struct color &color = color_columns.at(x).at(y);
-                color.r = color.g = color.b = 0xff;
+                c_col.at(y) = {0xff, 0xff, 0xff};
             }
         }
         if (x > 0)
@@ -248,7 +265,35 @@ int main(int argc, char **argv)
             }
         }
     }
-    RGBPNGWriter writer(arguments.args[1], color_columns);
+
+    auto t4 = high_resolution_clock::now();
+
+    RGBPNGWriter writer(args.args[1], color_columns);
     writer.write_png();
+
+    auto t5 = high_resolution_clock::now();
+
+    if (args.verbose)
+    {
+        std::cout << "Read PNG: "
+            << duration_cast<milliseconds>(t1 - t0).count()
+            << "ms" << std::endl;
+        std::cout << "Find Events: "
+            << duration_cast<milliseconds>(t2 - t1).count()
+            << "ms" << std::endl;
+        std::cout << "Erase Overhangs: "
+            << duration_cast<milliseconds>(t3 - t2).count()
+            << "ms" << std::endl;
+        std::cout << "Fill Colors: "
+            << duration_cast<milliseconds>(t4 - t3).count()
+            << "ms" << std::endl;
+        std::cout << "Write PNG: "
+            << duration_cast<milliseconds>(t5 - t4).count()
+            << "ms" << std::endl;
+        std::cout << "Total: "
+            << duration_cast<milliseconds>(t5 - t0).count()
+            << "ms" << std::endl;
+    }
+
     return 0;
 }

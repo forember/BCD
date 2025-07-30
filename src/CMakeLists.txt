@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(BCD)
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 find_package(PNG)
 add_executable(bcd bcd.cc exceptpng.cc readpng.cc slices.cc writepng.cc)
 target_link_libraries(bcd PRIVATE PNG::PNG)
